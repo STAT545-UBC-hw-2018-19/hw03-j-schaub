@@ -1,0 +1,193 @@
+---
+title: "Homework 3: Use dplyr/ggplot2 to manipulate and explore data"
+author: "Jessica Schaub"
+date: "September 27, 2018"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Outline
+
+* Introduction
+* Loading the Packages
+* Choosing Tasks
+   - Task 1: How is life expectancy changing over time on different continents?
+   - Task 2: Report the relative abundance of countries with low life expectancy.
+   - Task 3: Get the maximum and minimum of GDP per capita within the continents.
+
+### Introduction
+
+This homework has the purpose of creating a "cheatsheet" for functions in `dplyr` and `ggplot` that we can reference in the future.
+We must select three tasks from a list and tackle them using `dplyr` and `ggplot` where applicable.
+Please see the [assignment](http://stat545.com/Classroom/assignments/hw03/hw03.html) for more details.
+
+### Loading the Packages
+
+Here, we will load the packages for the assignment.
+
+```{r}
+# Tidyverse, for ggplot
+suppressPackageStartupMessages(library(tidyverse))
+# Gapminder, for the data set
+suppressPackageStartupMessages(library(gapminder))
+# Knitr, for the kable() function
+suppressPackageStartupMessages(library(knitr))
+```
+
+Notice that `suppressPackageStartupMessages` was used to keep the packages from printing out their messages after loading. 
+This will keep the final .md file clear of unecessary output.
+
+### Choosing Tasks
+
+I have chosen to tackle the following 3 tasks for this assignment:
+
+1. How is life expectancy changing over time on different continents?
+
+2. Report the relative abundance of countries with low life expectancy.
+
+3. Get the maximum and minimum of GDP per capita within the continents.
+
+
+#### Task 1: How is life expectancy changing over time on different continents?
+
+In this task, we must determine how life expectancy is changing over time for each continent.
+We can use ggplot to plot life expectancy vs time and color each continent differently to view the trends.
+
+```{r}
+#Plot of life expectancy vs time for each continent
+ggplot(gapminder,aes(year, lifeExp, color=continent)) +
+  geom_point() +
+  geom_smooth(method="lm", se=FALSE) + #linear trendlines
+  ylab("Life Expectancy (years)") +
+  xlab("Year") +
+  theme_classic() #cleaner look
+```
+
+Although some continents increase faster than others, life expectancy does increases with time for every continent. 
+
+This plot has a lot of data points. 
+What are some other ways to visualize this question in a cleaner way?
+We could only include points for the mean life expectancy for each year.
+
+```{r}
+#Determine mean life expectancy for each year, save as vector life_data for plotting
+life_data <- gapminder %>% 
+  group_by(continent, year) %>% 
+  summarise(mu_le=mean(lifeExp))
+
+#Print out the table with the data
+kable(life_data,col.names=c("Continent", "Year", "Mean Life Expectancy"))
+
+#Plot life_data to view
+ggplot(life_data, aes(year, mu_le, color=continent))+
+  geom_point() +
+  geom_smooth(method="lm") +
+  xlab("Year") +
+  ylab("Life Expectancy (years)") +
+  theme_classic() #cleaner look
+```
+
+This is cleaner than the first plot, but now we don't have a good understanding of the spread of the data.
+Let's try splitting each continent into it's own graph.
+
+```{r}
+ggplot(gapminder, aes(year, lifeExp))+
+  geom_point(pch='.') + #plot smaller points
+  geom_smooth(method="lm", se=FALSE, color='red')+ #linear trendlines
+  scale_x_continuous(breaks=c(1950, 1975, 2000)) + #decrease number of ticks, easier to read
+  facet_wrap(~continent, nrow=1) + #facet plots into 1 row
+  ylab("Life Expectancy (years)") +
+  xlab("Year") +
+  theme_bw() #cleaner look
+```
+
+Now we can see the spread and understand the increasing trend for each continent!
+
+#### Task 2: Report the relative abundance of countries with low life expectancy.
+
+In this task, we will report relative abundance of countries with low life expectancy. 
+We will define "low life expectancy" as an average life expectancy lower than 50. First, let's sort our data according to this new threshold.
+First, we need to determine the average life expectancy for each country from 1952-2007.
+
+```{r}
+#add column for relative lifeExp where values less than 50 are labelled "low" and greater than 50 are labelled "high"
+#save to variable new_data
+new_data <- gapminder %>%
+  group_by(country) %>% 
+  summarise(mu_lifeExp = mean(lifeExp)) %>% #get average life expectancy for each country
+  mutate(rel_lifeExp = if_else(mu_lifeExp < 50, "low", "high")) 
+  
+#Check that it worked, check the first 10 rows
+kable(head(new_data,10), col.names=c("Country", "Avg Life Expectancy", "Relative Life Expectancy"))
+```
+
+Now that our data seems ready to go, we can make a box plot of the number of continents with low life expectancies to visualize.
+
+```{r}
+#Plotting high vs low life expectancy
+ggplot(new_data, aes(rel_lifeExp)) +
+  geom_bar() +
+  scale_x_discrete(labels=c("High", "Low")) +
+  xlab("Relative Life Expectancy")+
+  ylab("Countries") +
+  theme_classic()
+```
+
+Then we can determine the exact number of "low" life expectancies.
+
+```{r}
+#Use the sum function to determine the number of countries with a "low" life expectancy (less than 50)
+sum(new_data$rel_lifeExp == "low")
+```
+
+It seems there are 36 countries that have an average life expectancy lower than 50, which is suprising!
+Let's check which countries.
+
+```{r}
+new_data %>% 
+  filter(rel_lifeExp == "low") %>% 
+  kable(col.names = c("Country", "Avg Life Expectancy", " Relative Life Expectancy"))
+```
+
+
+#### Task 3: Get the maximum and minimum values of GDP per capita within the continents.
+
+In this final task, we need to get the minimum and maximum values for GDP per capita for each contient.
+Again, we will consider the average GDP per capita.
+
+```{r}
+#Determine the mean GDP per capita for each country from 1952 to 2007
+#Store as variable gdp_data
+gdp_data <- gapminder %>% 
+  group_by(country, continent) %>% 
+  summarise(mu_gdpPercap = mean(gdpPercap))
+
+#View the data, first 10 rows only
+kable(head(gdp_data, 10), col.names = c("Country", "Continent", " Avg GDP per Capita"))
+
+```
+
+It might be helpful to view the all of data by continent first.
+
+```{r}
+#plot average gdp per cap for each continent to look at the data
+ggplot(gdp_data, aes(continent, mu_gdpPercap)) +
+  geom_boxplot(varwidth = TRUE) + #width of box is realtive to number of observations
+  xlab("Continent") +
+  ylab("Average GDP per capita") +
+  theme_classic()
+```
+
+Now we can summarise the data to determine the min and max values for each continent.
+
+```{r}
+#summarise both min and max GDP for each continent
+gdp_data %>% 
+  group_by(continent) %>% 
+  summarise(min = min(mu_gdpPercap), max = max(mu_gdpPercap)) %>%
+  kable(col.names=c("Continent", "Minimum GDP per capita", "Maximum GDP per capita"))
+```
+
